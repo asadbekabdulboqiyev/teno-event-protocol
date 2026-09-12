@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.class
+*.jar
+build/
+.versions.lock
+.env
+.env.*
