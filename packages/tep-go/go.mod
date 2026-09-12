@@ -1,3 +1,3 @@
-module github.com/asadbekabdulboqiyev/tep-go
+module github.com/asadbekabdulboqiyev/teno-event-protocol/packages/tep-go
 
 go 1.21

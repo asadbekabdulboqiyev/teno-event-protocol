@@ -6,7 +6,7 @@ HTTP/REST transport binding: `spec/transport-http.md`.
 
 ## Paket
 
-`github.com/asadbekabdulboqiyev/tep-go/tep`
+`github.com/asadbekabdulboqiyev/teno-event-protocol/packages/tep-go/tep`
 
 ## Izazlash
 
@@ -18,7 +18,7 @@ go vet ./...
 ## Producer
 
 ```go
-import "github.com/asadbekabdulboqiyev/tep-go/tep"
+import "github.com/asadbekabdulboqiyev/teno-event-protocol/packages/tep-go/tep"
 
 client, _ := tep.NewClient(tep.ClientOptions{
     URL:    "https://consumer.example.com/v1/events/push",

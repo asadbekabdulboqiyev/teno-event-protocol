@@ -135,7 +135,7 @@ export class TepHttpConsumer {
     sendJson(res, result.httpStatus ?? 502, result);
   }
 
-  async statusEndpoint(req: IncomingMessage, res: ServerResponse, eventId: string): Promise<void> {
+  async statusEndpoint(_req: IncomingMessage, res: ServerResponse, eventId: string): Promise<void> {
     const result = this.getEvent(eventId);
     sendJson(res, result.httpStatus ?? 502, result);
   }
