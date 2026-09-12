@@ -30,6 +30,7 @@ export interface TepResult {
   event_id?: string;
   status?: TepStatus;
   error?: string | null;
+  processed_at?: string;
   httpStatus?: number;
 }
 

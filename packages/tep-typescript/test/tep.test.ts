@@ -8,6 +8,7 @@ import {
   sign,
   verify,
   MemoryIdempotencyStore,
+  TepHttpConsumer,
 } from '../src/index.js';
 
 const SECRET = '0123456789abcdef0123456789abcdef';
@@ -83,4 +84,58 @@ test('MemoryIdempotencyStore returns existing records', () => {
   store.set('k1', { status: 'delivered', processedAt: new Date().toISOString() });
   const got = store.get('k1');
   assert.equal(got?.status, 'delivered');
+});
+
+test('TepHttpConsumer.handle accepts a signed event and dedupes', async () => {
+  let handled = 0;
+  const consumer = new TepHttpConsumer({
+    secret: SECRET,
+    handler: async (env) => {
+      handled += 1;
+      assert.equal(env.type, 'company.updated');
+      return {};
+    },
+  });
+
+  const envelope = buildEnvelope({
+    type: 'company.updated',
+    source: 'nescom',
+    idempotency_key: 'company-42',
+    payload: { company_id: '42' },
+  });
+  const rawBody = serializeEnvelope(envelope);
+  const signature = sign(envelope, rawBody, SECRET);
+
+  const first = await consumer.handle(
+    { version: envelope.version, key: 'nescom', signature },
+    rawBody
+  );
+  assert.equal(first.code, 'OK');
+  assert.equal(handled, 1);
+
+  const dup = await consumer.handle(
+    { version: envelope.version, key: 'nescom', signature },
+    rawBody
+  );
+  assert.equal(dup.code, 'DUPLICATE_EVENT');
+  assert.equal(handled, 1);
+
+  const status = consumer.getEvent(envelope.event_id);
+  assert.equal(status.code, 'OK');
+  assert.equal(status.status, 'delivered');
+});
+
+test('TepHttpConsumer.handle rejects tampered signature', async () => {
+  const consumer = new TepHttpConsumer({
+    secret: SECRET,
+    handler: async () => ({}),
+  });
+  const envelope = buildEnvelope({ type: 'a.b', source: 's', payload: { x: 1 } });
+  const rawBody = serializeEnvelope({ ...envelope, payload: { x: 2 } });
+  const signature = sign(envelope, serializeEnvelope(envelope), SECRET);
+  const result = await consumer.handle(
+    { version: envelope.version, key: 's', signature },
+    rawBody
+  );
+  assert.equal(result.code, 'SIG_INVALID');
 });
