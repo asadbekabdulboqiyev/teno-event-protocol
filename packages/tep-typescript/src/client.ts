@@ -3,6 +3,8 @@ import { sign } from './signature.js';
 import { TepError } from './errors.js';
 import type { TepEnvelope, TepResult } from './types.js';
 
+export type TepClientPushInput = Omit<BuildEnvelopeInput, 'source'>;
+
 export interface TepClientOptions {
   url: URL;
   secret: string;
@@ -35,7 +37,7 @@ export class TepClient {
     this.maxDelayMs = options.maxDelayMs ?? 60000;
   }
 
-  async push(input: BuildEnvelopeInput): Promise<TepResult> {
+  async push(input: TepClientPushInput): Promise<TepResult> {
     const envelope: TepEnvelope = buildEnvelope({ ...input, source: this.source });
     const rawBody = serializeEnvelope(envelope);
     const signature = sign(envelope, rawBody, this.secret);
