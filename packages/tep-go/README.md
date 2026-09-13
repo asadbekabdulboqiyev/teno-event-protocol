@@ -1,17 +1,17 @@
 # tep-go
 
-TEP (Teno Event Protocol) — Go implementatsiyasi.
-**stress-strike** (Go load-tester) bilan integratsiya va standart ish uchun.
+Go implementation of TEP (Teno Event Protocol).
+For integration with **stress-strike** (Go load-tester) and standard use.
 HTTP/REST transport binding: `spec/transport-http.md`.
 
-## Paket
+## Package
 
 `github.com/asadbekabdulboqiyev/teno-event-protocol/packages/tep-go/tep`
 
-## Izazlash
+## Install
 
 ```bash
-go test ./...        # + -race bilan ham
+go test ./...        # run with -race too
 go vet ./...
 ```
 
@@ -41,11 +41,11 @@ mux.HandleFunc("/v1/events/push", consumer.PushHandler())
 mux.HandleFunc("/v1/events/{id}/status", consumer.StatusHandler())
 ```
 
-`consumer.WithStore(store)` orqali Redis/Pg store almashtirish mumkin
-(`tep.Store` interfeysi).
+Swap the store via `consumer.WithStore(store)` for Redis/Pg (the `tep.Store`
+interface).
 
-## stress-strike uyg'unligi
+## stress-strike compatibility
 
-Go kutubxonasi hech qanday tashqi bog'liqliksiz, stress-strike'ning
-`api` paketiga oson ulanishadi yoki TEP server'ni yuk-test qilishda
-odatiy HTTP target sifatida ishlatiladi.
+The Go library has no external dependencies, plugs into stress-strike's
+`api` package easily, or can be used as a regular HTTP target when load
+testing a TEP server.

@@ -1,16 +1,17 @@
 # tep-kotlin
 
-TEP (Teno Event Protocol) — Kotlin/JVM implementatsiyasi.
-**meshnet_app** (offline P2P mesh, BLE + Wi-Fi Direct) uchun binary frame
-transport binding: `spec/transport-mesh.md`.
+Kotlin/JVM implementation of TEP (Teno Event Protocol).
+Binary frame transport binding for **meshnet_app** (offline P2P mesh,
+BLE + Wi-Fi Direct): `spec/transport-mesh.md`.
 
-## Tarkib
+## Contents
 
 - `TepEnvelope` — kernel envelope (data class)
-- `Signature` — HMAC-SHA256 imzo + constant-time tekshiruv (JVM `MessageDigest.isEqual`)
+- `Signature` — HMAC-SHA256 signature + constant-time check (JVM
+  `MessageDigest.isEqual`)
 - `FrameCodec` — MeshNet binary frame encode/decode/verify
 
-## Frame formati (transport-mesh.md)
+## Frame format (transport-mesh.md)
 
 ```
 0      1    version (0x01)
@@ -21,25 +22,25 @@ transport binding: `spec/transport-mesh.md`.
 31     1    flags (bit0 correlation_id, bit1 idempotency_key)
 32     ...  header blob (varstring source, type, [correlation_id], [idempotency_key])
 ...    n    payload (raw bytes)
-...    32   HMAC-SHA256 imzo
+...    32   HMAC-SHA256 signature
 ```
 
-Imzo kernel bo'yicha: `tep\n1.0\n<event_id>\n<ISO timestamp>\n<source>\n<type>\n<payload_bytes>`.
+Signature per the kernel: `tep\n1.0\n<event_id>\n<ISO timestamp>\n<source>\n<type>\n<payload_bytes>`.
 
-## Ishga tushirish
+## Run
 
 ```bash
-./build.sh run        # yangi kotlinc PATH'da bo'lsa
+./build.sh run        # if kotlinc is on PATH
 KOTLINC=/path/kotlinc ./build.sh run
 ```
 
-Yoki Gradle loyihaga `src/main/kotlin` va `src/test/kotlin`ni qo'shing.
+Or add `src/main/kotlin` and `src/test/kotlin` to a Gradle project.
 
-## meshnet_app'ga qanday ulanish
+## How to hook it into meshnet_app
 
-`RoutingEngine`'dagi 41 chi MessageType (`TEP_EVENT`) sifatida frame'laringizni
-relay qiling. `hopLimit`/`ttl` kernel'ni buzmaydi — MeshFrame o'zida qoladi,
-TEP uning payload'iga joylashadi.
+Relay your frames as MessageType 41 (`TEP_EVENT`) in `RoutingEngine`.
+`hopLimit`/`ttl` do not break the kernel — the TEP envelope lives inside the
+MeshFrame payload.
 
 ```kotlin
 val frame = FrameCodec.encode(envelope, secret)

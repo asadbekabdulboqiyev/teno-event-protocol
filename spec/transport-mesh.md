@@ -1,22 +1,22 @@
 # TEP over MeshNet Frame — transport binding v1.0
 
-meshnet_app uchun binary frame transport. Offline P2P: BLE (GATT) +
+Binary frame transport for meshnet_app. Offline P2P: BLE (GATT) +
 Wi-Fi Direct. Kernel: `spec/TEP.md`.
 
-## Farqi vs HTTP
+## Differences vs HTTP
 
-- Transport sifri: ChaCha20-Poly1305 (meshnitning o'z qatlami).
-- Envelope uchun JSON o'rniga **compact binary header**.
-- Canonical imzo kernel bo'yicha: `tep\n<version>\n<event_id>\n<timestamp>\n<source>\n<type>\n<payload_bytes>`.
-  Bunda `payload_bytes` frame ichidagi xom payload baytlari.
+- Transport encryption: ChaCha20-Poly1305 (meshnit's own layer).
+- A **compact binary header** replaces JSON for the envelope.
+- Canonical signature per the kernel: `tep\n<version>\n<event_id>\n<timestamp>\n<source>\n<type>\n<payload_bytes>`.
+  Here `payload_bytes` are the raw payload bytes inside the frame.
 
-## Frame formati
+## Frame format
 
-MeshNet `MeshFrame` (type, hopLimit, ttl, payload) ichiga TEP`ni joylashtiramiz.
+We place TEP inside a MeshNet `MeshFrame` (type, hopLimit, ttl, payload).
 TEP mesh envelope (binary):
 
 ```
-Offset  Size      Maydon
+Offset  Size      Field
 0       1         version (0x01)
 1       2         header_len (big-endian)
 3       4         payload_len (big-endian)
@@ -27,55 +27,58 @@ Offset  Size      Maydon
                   bit1 = has idempotency_key
 32      ...       header blob (varstring source, varstring type,
                   optional correlation_id, optional idempotency_key)
-...     payload_len   payload (xom baytlar, quidor ilova yuklashi)
-...     32        imzo (HMAC-SHA256 32 bayt)
+...     payload_len   payload (raw bytes, consumer app payload)
+...     32        signature (HMAC-SHA256 32 bytes)
 ```
 
 ### varstring
 
-1 bayt uzunlik (0-255) + UTF-8 baytlar.
+1 byte length (0-255) + UTF-8 bytes.
 
 ### timestamp
 
-Unix epoch millisekund, IEEE 754 emas — oddiy uint64 big-endian (8 bayt).
+Unix epoch milliseconds, not IEEE 754 — plain uint64 big-endian (8 bytes).
 
-## Imzo
+## Signature
 
 ```
 tep\n1.0\n<event_id_uuid_string>\n<ISO8601 timestamp>\n<source>\n<type>\n<payload_bytes>
 ```
 
-- `event_id_uuid_string` — UUID ning standart matn shakli (lowercase, dash'lar bilan).
-- timestamp ISO8601 — frame ichida unix ms bo'lsa ham, imzoda ISO satr.
+- `event_id_uuid_string` — the UUID's canonical text form (lowercase, with
+  dashes).
+- timestamp ISO8601 — even though the frame stores unix ms, the signature
+  uses the ISO string.
 
-Imzo 32 bayt HMAC-SHA256 — frame oxirida 32 bayt qilib qo'yiladi (16 lane).
-Hech qanday `v1.` prefiksi shart emas, chunki frame ichida version maydoni bor.
+The signature is a 32-byte HMAC-SHA256 appended at the end of the frame
+(16 lanes). No `v1.` prefix is needed because the frame carries a version
+field.
 
-## Kotlin implementatsiya namunalari domainlari
+## Kotlin implementation example domains
 
-- `TepMeshEnvelope` — frame dekod/keycode yordamida header+payload+signature.
-- `TepMeshCrypto.sign(frame)` / `.verify(frame)` — X25519 sessiya kalitdan
-  olingan shared secret yoki app-level `TEP_SECRET` bilan HMAC.
-- `RoutingEngine` frame'ni TESH-tovush: `MessageType` `TEP_EVENT` (41) sifatida
-  relay qiladi, `hopLimit`, `ttl` kernelni buzmaydi.
+- `TepMeshEnvelope` — header + payload + signature via frame decode/encode.
+- `TepMeshCrypto.sign(frame)` / `.verify(frame)` — HMAC with a shared
+  secret derived from the X25519 session key or an app-level `TEP_SECRET`.
+- `RoutingEngine` routes the frame: relayed as `MessageType` `TEP_EVENT`
+  (41), without violating the kernel's `hopLimit`/`ttl`.
 
-## MeshNet da hodisa turlari
+## Event types in MeshNet
 
-| Type | Izoh |
+| Type | Description |
 |---|---|
-| `peer.joined` | yangi peer qo'shildi, topology yangilandi |
-| `message.relayed` | multi-hop message relay ro'y berdi |
-| `file.transferred` | chunked file transfer tugadi |
-| `group.updated` | guruh a'zolari/kalit yangilandi |
+| `peer.joined` | a new peer joined, topology updated |
+| `message.relayed` | a multi-hop message relay occurred |
+| `file.transferred` | a chunked file transfer completed |
+| `group.updated` | group membership/keys updated |
 
 ## Idempotency (mesh)
 
-- Har bir node kalit: `event_id` → `MessageStore`'da 24 soat TTL.
-- Takroriy `TEP_EVENT` frame'lar qayta relay qilinmaydi (loop prevention).
+- Per-node key: `event_id` → `MessageStore` with 24h TTL.
+- Duplicate `TEP_EVENT` frames are not relayed again (loop prevention).
 
 ## Retry (mesh)
 
-- BLE tushib qolsa: frame `WifiDirectTransport` orqali qayta uriniladi.
-- `store-and-forward`: offline node uchun frame saqlanadi, ulanganda
-  yuboriladi.
-- Max 5 urinish; oshsa `failed` status.
+- If BLE drops: the frame is retried over `WifiDirectTransport`.
+- `store-and-forward`: frames are stored for offline nodes and delivered on
+  reconnection.
+- Max 5 attempts; beyond that the status becomes `failed`.

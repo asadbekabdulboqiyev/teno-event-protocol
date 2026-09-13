@@ -1,18 +1,18 @@
 # TEP over HTTP/REST — transport binding v1.0
 
-nescom (Next.js/TS) va nesto-codebase uchun HTTP/REST transport.
+HTTP/REST transport for nescom (Next.js/TS) and nesto-codebase.
 
 Kernel: `spec/TEP.md`.
 
-## Transport xususiyatlari
+## Transport characteristics
 
-- HTTPS (ishlab chiqarishda HSTS bilan).
+- HTTPS (with HSTS in production).
 - `Content-Type: application/json` (UTF-8).
-- Imzo `X-TEP-Signature` header'ida.
+- Signature in the `X-TEP-Signature` header.
 
-## Endpointlar
+## Endpoints
 
-### 1. Hodisa yuborish
+### 1. Push an event
 
 ```
 POST /v1/events/push
@@ -22,26 +22,27 @@ X-TEP-Key: <consumer_key>
 X-TEP-Signature: v1.<base64url>
 ```
 
-Body — to'liq envelope JSON (kernel bo'yicha).
+Body — the full envelope JSON (per the kernel).
 
-Javob:
+Response:
 
 ```json
 { "event_id": "...", "status": "delivered", "error": null }
 ```
 
-202 qaytadigan holatlar (async queue):
+For async queueing (202):
+
 ```json
 { "event_id": "...", "status": "accepted", "error": null }
 ```
 
-### 2. Status so'rovi
+### 2. Status query
 
 ```
 GET /v1/events/:id/status
 ```
 
-Javob:
+Response:
 ```json
 { "event_id": "...", "status": "delivered", "processed_at": "...", "error": null }
 ```
@@ -56,34 +57,35 @@ GET /v1/health
 { "status": "ok", "version": "1.0", "time": "<ISO8601>" }
 ```
 
-## Imzo tekshiruvi (consumer)
+## Signature verification (consumer)
 
-1. `X-TEP-Version`, `X-TEP-Key`, `X-TEP-Signature` mavjudligi.
-2. Body **raw baytlari** saqlanadi (express: `express.raw({type:'application/json'})`
-   yoki Next.js Route Handler `request.text()` → `Buffer`).
-3. Envelope JSON-dan parse qilinadi.
+1. `X-TEP-Version`, `X-TEP-Key`, `X-TEP-Signature` must be present.
+2. The body is kept as **raw bytes** (`express.raw({type:'application/json'})`
+   or Next.js Route Handler `request.text()` → `Buffer`).
+3. The envelope is parsed from the JSON.
 4. Canonical string: `tep\n<version>\n<event_id>\n<timestamp>\n<source>\n<type>\n<raw_payload_bytes>`.
-   Bunda `raw_payload_bytes` = asl body dagi `payload` qiymatining aniq baytlari.
-   JSON parse/re-serialize **qilinmaydi** (key tartibi va son formatiga
-   bog'liq farqlar tufayli).
+   Here `raw_payload_bytes` are the exact bytes of the `payload` value in the
+   original body. The JSON is **not** parsed and re-serialized (to avoid
+   differences from key order and number formatting).
 
-> Amalda, n-til bir xilligi uchun: yuboruvchi `payload`'ni o'zi tuzgan JSON
-> satr sifatida signaturega kiritadi. Qabul qiluvchi body'ni raw saqlab,
-> payload qiymatini raw body ichidan (offset bilan) oladi yoki shartnomada
-> "payload faqat yopiq ob'ekt va u `\n` o'z ichiga olmaydi" deb belgilaydi.
-> Eng ishonchli — `body`'ning o'zi `{envelope-fieldlar + payload}` sifatida
-> yuboriladi va signature butun body raw baytlari ustida hisoblanadi:
+> In practice, for cross-language equivalence: the producer signs the
+> `payload` it built itself as a JSON string. The consumer keeps the body
+> raw and extracts the payload value from within the raw body (by offset),
+> or the contract states "the payload is a closed object and must not
+> contain `\n`". The most reliable approach is to send the `body` itself as
+> `{envelope-fields + payload}` and compute the signature over the raw bytes
+> of the whole body:
 
 ```
 canonical = "tep\n" + version + "\n" + event_id + "\n" + timestamp + "\n"
           + source + "\n" + type + "\n" + rawBodyBytes
 ```
 
-`rawBodyBytes` — butun so'rov body baytlari. Bu yondashuv cross-language
-100% mos va soddalikni ta'minlaydi. Bu kernel spec'dagi tavsifning HTTP
-uchun konkret talqini.
+`rawBodyBytes` are the bytes of the entire request body. This approach is
+100% cross-language consistent and simple. It is the concrete HTTP
+interpretation of the kernel spec.
 
-## Consumer (Express namuna)
+## Consumer (Express example)
 
 ```ts
 import { TepHttpConsumer } from "tep-typescript";
@@ -91,7 +93,7 @@ import { TepHttpConsumer } from "tep-typescript";
 const consumer = new TepHttpConsumer({
   secret: process.env.TEP_SECRET!,
   handler: async (env) => {
-    // biznes logikasi — masalan audit event saqlash
+    // business logic — e.g. store an audit event
     await db.audit.create({ data: env.payload });
     return { status: 200, code: "OK" };
   },
@@ -101,7 +103,7 @@ app.use("/v1/events/push", consumer.middleware());
 app.get("/v1/events/:id/status", consumer.statusHandler());
 ```
 
-## Producer (client namuna)
+## Producer (client example)
 
 ```ts
 import { TepClient } from "tep-typescript";
@@ -123,11 +125,11 @@ await producer.push({
 
 - Exponential backoff: `delay = MIN(base * 2^n, max)`, `base=1s`, `max=60s`.
 - `maxRetries = 5`.
-- Takroriy urinish aniq shu `event_id` bilan — consumer idempotent.
+- Retries reuse the exact same `event_id` — the consumer is idempotent.
 
-## Xato kodlari → HTTP status
+## Error codes → HTTP status
 
-| Kod | HTTP |
+| Code | HTTP |
 |---|---|
 | `OK`/`DUPLICATE_EVENT` | 200 |
 | `EVENT_ACCEPTED` | 202 |

@@ -1,19 +1,19 @@
 # tep-typescript
 
-TEP (Teno Event Protocol) — TypeScript implementatsiyasi.
-**nescom** va **nesto-codebase** uchun HTTP/REST transport binding:
+TypeScript implementation of TEP (Teno Event Protocol).
+HTTP/REST transport binding for **nescom** and **nesto-codebase**:
 `spec/transport-http.md`.
 
-## Tarkib
+## Contents
 
 - `buildEnvelope` / `parseEnvelope` / `serializeEnvelope` — envelope serde
-- `canonical` / `sign` / `verify` — HMAC-SHA256 imzo (constant-time)
-- `TepClient` — producer: imzolash + exponential backoff (5 ta urinish)
-- `TepHttpConsumer` — consumer: Express/Node uchun `pushEndpoint` +
-  `statusEndpoint` handlerlar
-- `MemoryIdempotencyStore` — 24 soat TTL'li deduplikatsiya store
+- `canonical` / `sign` / `verify` — HMAC-SHA256 signature (constant-time)
+- `TepClient` — producer: signing + exponential backoff (5 attempts)
+- `TepHttpConsumer` — consumer: `pushEndpoint` + `statusEndpoint` handlers
+  for Express/Node
+- `MemoryIdempotencyStore` — deduplication store with 24h TTL
 
-## Izazlash
+## Install
 
 ```bash
 npm install
